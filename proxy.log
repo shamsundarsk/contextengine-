@@ -112,3 +112,52 @@
  - Downstream target base URL: https://api.groq.com/openai/v1
  - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
  - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+10:07:34 PM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 577.74 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+10:18:01 PM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 580.10 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+10:18:52 PM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 502.79 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+10:19:37 PM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 402.21 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+10:21:58 PM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 479.52 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+12:46:02 AM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 271.72 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages
+12:48:47 AM [tsx] change in ./../core/dist/index.js Restarting...
+[Context Engine Proxy] Warming local embedding model (Xenova/all-MiniLM-L6-v2)...
+[Context Engine Proxy] Embedding model warmed up in 724.76 ms.
+[Context Engine Proxy] Listening on http://127.0.0.1:4000
+ - Downstream target base URL: https://api.groq.com/openai/v1
+ - OpenAI / Groq endpoint:     http://127.0.0.1:4000/v1/chat/completions
+ - Anthropic endpoint:         http://127.0.0.1:4000/v1/messages

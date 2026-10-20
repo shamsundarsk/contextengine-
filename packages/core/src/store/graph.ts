@@ -11,6 +11,8 @@ import {
   SessionStats,
   SessionSummary,
   TriageLabel,
+  LogTier,
+  OverrideNodeOptions,
 } from './types.js';
 
 function generateId(prefix: string): string {
@@ -124,8 +126,9 @@ export function commit(
   branchName: string,
   topicLabel: string,
   reasonLog: string,
-  chunks: { content: string; label: TriageLabel; source_ref?: string }[],
-  parentId?: string
+  chunks: { content: string; label: TriageLabel; tier?: LogTier; turn?: number; source_ref?: string }[],
+  parentId?: string,
+  turn?: number
 ): Commit {
   const db = getDatabase();
 
@@ -140,15 +143,16 @@ export function commit(
 
   const commitId = generateId('commit');
   const timestamp = Date.now();
+  const commitTurn = turn ?? 0;
 
   const insertCommitStmt = db.prepare(`
-    INSERT INTO commits (id, parent_id, session_id, branch, timestamp, topic_label, reason_log)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO commits (id, parent_id, session_id, branch, timestamp, topic_label, reason_log, turn)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertChunkStmt = db.prepare(`
-    INSERT INTO chunks (id, commit_id, content, label, source_ref)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO chunks (id, commit_id, content, label, tier, turn, created_at, source_ref)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const updateBranchStmt = db.prepare(`
@@ -160,16 +164,22 @@ export function commit(
   const createdChunks: Chunk[] = [];
 
   const transaction = db.transaction(() => {
-    insertCommitStmt.run(commitId, parent, sessionId, branchName, timestamp, topicLabel, reasonLog);
+    insertCommitStmt.run(commitId, parent, sessionId, branchName, timestamp, topicLabel, reasonLog, commitTurn);
 
     for (const c of chunks) {
       const chunkId = generateId('chunk');
-      insertChunkStmt.run(chunkId, commitId, c.content, c.label, c.source_ref || null);
+      const tier = c.tier || (c.label === 'keep_verbatim' ? 'architectural' : 'conversational');
+      const chunkTurn = c.turn ?? commitTurn;
+      const createdAt = timestamp;
+      insertChunkStmt.run(chunkId, commitId, c.content, c.label, tier, chunkTurn, createdAt, c.source_ref || null);
       createdChunks.push({
         id: chunkId,
         commit_id: commitId,
         content: c.content,
         label: c.label,
+        tier,
+        turn: chunkTurn,
+        created_at: createdAt,
         source_ref: c.source_ref,
       });
     }
@@ -187,9 +197,187 @@ export function commit(
     timestamp,
     topic_label: topicLabel,
     reason_log: reasonLog,
+    turn: commitTurn,
     chunks: createdChunks,
   };
 }
+
+/**
+ * Prunes transient logs older than maxTurnsToKeep (default: 3 turns) to prevent filler accumulation.
+ */
+export function pruneTransientLogs(sessionId: string, currentTurn?: number, maxTurnsToKeep: number = 3): number {
+  const db = getDatabase();
+  let prunedCount = 0;
+
+  db.transaction(() => {
+    if (typeof currentTurn === 'number') {
+      const minKeepTurn = currentTurn - maxTurnsToKeep;
+      const res = db.prepare(`
+        DELETE FROM chunks
+        WHERE commit_id IN (SELECT id FROM commits WHERE session_id = ?)
+          AND tier = 'transient'
+          AND turn <= ?
+      `).run(sessionId, minKeepTurn);
+      prunedCount += res.changes;
+    } else {
+      const recentCommitRows = db.prepare(`
+        SELECT id FROM commits WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?
+      `).all(sessionId, maxTurnsToKeep) as { id: string }[];
+      const recentIds = recentCommitRows.map((r) => r.id);
+      if (recentIds.length > 0) {
+        const placeholders = recentIds.map(() => '?').join(',');
+        const res = db.prepare(`
+          DELETE FROM chunks
+          WHERE commit_id IN (SELECT id FROM commits WHERE session_id = ?)
+            AND tier = 'transient'
+            AND commit_id NOT IN (${placeholders})
+        `).run(sessionId, ...recentIds);
+        prunedCount += res.changes;
+      }
+    }
+  })();
+
+  return prunedCount;
+}
+
+/**
+ * Forcibly targets an exact commit node in the history graph and updates its text content / prunes debug junk.
+ */
+export function overrideMemoryNode(commitId: string, options: OverrideNodeOptions): Commit {
+  const db = getDatabase();
+  const existingCommit = getCommit(commitId);
+  if (!existingCommit) {
+    throw new Error(`Commit ${commitId} not found.`);
+  }
+
+  const newTopic = options.new_topic?.trim() || existingCommit.topic_label;
+  const newReason = options.new_summary?.trim() || existingCommit.reason_log;
+
+  db.transaction(() => {
+    // 1. Direct update to commit node
+    db.prepare(`
+      UPDATE commits
+      SET topic_label = ?, reason_log = ?
+      WHERE id = ?
+    `).run(newTopic, newReason, commitId);
+
+    // 2. Prune transient logs if requested
+    if (options.prune_transient) {
+      db.prepare(`
+        DELETE FROM chunks
+        WHERE commit_id = ? AND (tier = 'transient' OR label = 'discard')
+      `).run(commitId);
+    }
+
+    // 3. Delete specific chunk IDs if requested
+    if (options.discard_chunk_ids && options.discard_chunk_ids.length > 0) {
+      const placeholders = options.discard_chunk_ids.map(() => '?').join(',');
+      db.prepare(`
+        DELETE FROM chunks
+        WHERE commit_id = ? AND id IN (${placeholders})
+      `).run(commitId, ...options.discard_chunk_ids);
+    }
+
+    // 4. Overwrite kept chunks if new facts provided
+    if (options.kept_chunks && options.kept_chunks.length > 0) {
+      db.prepare(`DELETE FROM chunks WHERE commit_id = ?`).run(commitId);
+      const insertChunkStmt = db.prepare(`
+        INSERT INTO chunks (id, commit_id, content, label, tier, turn, created_at, source_ref)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const fact of options.kept_chunks) {
+        const chunkId = generateId('chunk');
+        insertChunkStmt.run(chunkId, commitId, fact, 'keep_verbatim', 'architectural', existingCommit.turn || 0, Date.now(), 'user_override');
+      }
+    }
+  })();
+
+  const updatedCommit = getCommit(commitId);
+  if (!updatedCommit) {
+    throw new Error(`Failed to retrieve updated commit ${commitId}`);
+  }
+  return updatedCommit;
+}
+
+/**
+ * Builds a clean, visual markdown text graph tree of branches, commits, and memory states straight to the chat view.
+ */
+export function getContextTree(sessionId: string = 'default_session'): string {
+  const db = getDatabase();
+  let targetSession = sessionId;
+  const allSessions = getAllSessions();
+
+  // If provided session has no commits, pick first active session if available
+  const currentSessionCommits = getCommits(targetSession);
+  if (currentSessionCommits.length === 0) {
+    const activeWithCommits = allSessions.find((s) => s.commitCount > 0);
+    if (activeWithCommits) {
+      targetSession = activeWithCommits.sessionId;
+    }
+  }
+
+  const branches = getBranches(targetSession);
+  const activeBranch = getActiveBranch(targetSession);
+  const stats = getStats(targetSession);
+  const commits = getCommits(targetSession);
+
+  if (commits.length === 0) {
+    return [
+      `# 🌳 Context Memory Graph Tree`,
+      `**Session**: \`${targetSession}\` | **Active Branch**: \`${activeBranch.name}\` (HEAD: none)`,
+      ``,
+      `*No commits recorded in memory graph yet.*`,
+      ``,
+      `Memory is initialized and waiting for conversational milestones or background auto-commits.`,
+    ].join('\n');
+  }
+
+  const branchTrees: string[] = [];
+
+  for (const b of branches) {
+    const branchCommits = getCommits(targetSession, b.name);
+    const isActive = b.name === activeBranch.name;
+    const headerPrefix = isActive ? `* **[${b.name}]** (ACTIVE HEAD -> \`${b.head_commit_id || 'root'}\`)` : `* **[${b.name}]** (HEAD -> \`${b.head_commit_id || 'root'}\`)`;
+
+    if (branchCommits.length === 0) {
+      branchTrees.push(`${headerPrefix}\n  └── (no commits on this branch)`);
+      continue;
+    }
+
+    const lines: string[] = [headerPrefix];
+    branchCommits.forEach((c, idx) => {
+      const isLast = idx === branchCommits.length - 1;
+      const connector = isLast ? '└──' : '├──';
+      const subConnector = isLast ? '    ' : '│   ';
+      const dateStr = new Date(c.timestamp).toLocaleTimeString();
+      const keptCount = (c.chunks || []).filter((ch) => ch.label === 'keep_verbatim').length;
+      const transientCount = (c.chunks || []).filter((ch) => ch.tier === 'transient').length;
+
+      lines.push(`  ${connector} [\`${c.id.slice(0, 12)}\`] ${dateStr} - **${c.topic_label}**`);
+      lines.push(`  ${subConnector} ↳ Summary: "${c.reason_log.slice(0, 70)}${c.reason_log.length > 70 ? '...' : ''}"`);
+      lines.push(`  ${subConnector} ↳ Facts: ${keptCount} kept verbatim · ${transientCount} transient`);
+    });
+
+    branchTrees.push(lines.join('\n'));
+  }
+
+  return [
+    `# 🌳 Context Memory Graph Tree`,
+    `**Session**: \`${targetSession}\` | **Active Branch**: \`${activeBranch.name}\` | **HEAD**: \`${activeBranch.head_commit_id || 'none'}\``,
+    ``,
+    `### Branch Topology & Commits:`,
+    branchTrees.join('\n\n'),
+    ``,
+    `### Memory State Summary:`,
+    `- **Total Commits**: ${stats.totalCommits}`,
+    `- **Active Branches**: ${branches.length}`,
+    `- **Preserved Architectural Facts**: ${stats.keptVerbatimCount}`,
+    `- **Summarized Context Chunks**: ${stats.summarizedCount}`,
+    `- **Discarded Filler Items**: ${stats.discardedCount}`,
+    `- **Estimated Token Savings**: ${stats.tokensSavedPct}% (~${Math.max(0, stats.totalOriginalTokens - stats.totalOptimizedTokens)} tokens)`,
+  ].join('\n');
+}
+
 
 export function branch(sessionId: string, name: string, fromCommitId?: string): Branch {
   const db = getDatabase();
@@ -416,13 +604,20 @@ export async function reconstructContext(sessionId: string): Promise<Reconstruct
     currId = c.parent_id;
   }
 
+  // Prune transient logs older than 3 commits before reconstructing
+  try {
+    pruneTransientLogs(sessionId);
+  } catch {
+    // Non-fatal
+  }
+
   // Chronological order (oldest to newest)
   historyCommits.reverse();
 
   const allChunks = historyCommits.flatMap((c) => c.chunks || []);
 
-  const keptVerbatim = allChunks.filter((c) => c.label === 'keep_verbatim');
-  const summarizeChunks = allChunks.filter((c) => c.label === 'summarize');
+  const keptVerbatim = allChunks.filter((c) => c.label === 'keep_verbatim' && c.tier !== 'transient');
+  const summarizeChunks = allChunks.filter((c) => c.label === 'summarize' && c.tier !== 'transient');
 
   let rollingSummary = '';
   if (summarizeChunks.length > 0) {

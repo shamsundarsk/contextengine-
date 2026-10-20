@@ -1,4 +1,4 @@
-import { ScoringPolicy, ScoringResult, SubScores, TriageLabel } from './store/types.js';
+import { LogTier, ScoringPolicy, ScoringResult, SubScores, TriageLabel } from './store/types.js';
 
 export const DEFAULT_SCORING_POLICY: ScoringPolicy = {
   weights: {
@@ -21,7 +21,6 @@ async function getExtractor() {
   if (featureExtractor) return featureExtractor;
   if (extractorLoadFailed) return null;
   if (isExtractorLoading) {
-    // Wait briefly if loading in progress
     let waitCount = 0;
     while (isExtractorLoading && waitCount < 20) {
       await new Promise((r) => setTimeout(r, 100));
@@ -70,6 +69,76 @@ export async function computeEmbedding(text: string): Promise<number[] | null> {
   }
 }
 
+export interface TextTierClassification {
+  tier: LogTier;
+  confidence: number;
+  reason: string;
+}
+
+/**
+ * Dual-Tier text categorization filter.
+ * Rapidly classifies text into Transient Logs, Architectural Decisions, or Conversational filler.
+ */
+export function classifyTextTier(content: string): TextTierClassification {
+  if (!content || !content.trim()) {
+    return {
+      tier: 'conversational',
+      confidence: 1.0,
+      reason: 'Empty or blank content.',
+    };
+  }
+
+  // 1. Transient Logs Check (Ephemeral terminal dumps, stack traces, compiler output, test run logs, PIDs, timestamps)
+  const isTransient =
+    // Test runner output (vitest, jest, mocha, pytest)
+    /\b(FAIL|PASS|RUNS|Test Files|Tests:|Duration:|transforming \(\d+\)|modules transformed|npm ERR!|yarn run|exit code \d+)\b/.test(content) ||
+    // Ephemeral stack traces and runtime frames
+    /(?:at\s+[\w$./<>]+(?:\s+\(.*:\d+:\d+\)|:\d+:\d+)|node:internal\/|webpack:\/\/\/)/.test(content) ||
+    // Compiler / build noise
+    /\b(?:computing gzip size|rendering chunks|built in \d+ms|\[vite\]|\[webpack\]|rollup v)/i.test(content) ||
+    // Process IDs, transient ports/memory logs, curl/ping outputs
+    /\b(?:pid\s+\d+|PID:\s*\d+|listening on port \d{4,5}|GET \/[a-z0-9_/-]+ 200|POST \/[a-z0-9_/-]+ 200|status: 200 OK|latency: \d+ms)\b/i.test(content) ||
+    // Terminal progress indicators or ANSI escape codes
+    /(\[\s*={3,}\s*\]|\x1b\[[0-9;]*[a-zA-Z]|\b\d+%\s+\[\.*\])/.test(content) ||
+    // Raw timestamped syslog or debug dumps
+    /^\s*(?:\[?\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\]?)\s+(?:\[?(?:DEBUG|TRACE|INFO|VERBOSE)\]?)/im.test(content);
+
+  // 2. Architectural Decisions Check (Permanent design decisions, schemas, configurations, API contracts)
+  const isArchitectural =
+    // Explicit decision and architecture language
+    /\b(?:decided to|decision:|we decided|agreed that|architecture|architectural|design choice|adr|rationale:)\b/i.test(content) ||
+    // Schema definitions and database tables
+    /\b(?:CREATE TABLE|ALTER TABLE|FOREIGN KEY|PRIMARY KEY|interface [A-Z]\w+|type [A-Z]\w+\s*=|schema:|enum [A-Z]\w+)\b/.test(content) ||
+    // Environment configurations and permanent contracts
+    /\b(?:process\.env\.[A-Z0-9_]+|[A-Z0-9_]{3,}=(?:https?:\/\/|[a-z0-9_/-]+)|export const [A-Z0-9_]+ =)\b/.test(content) ||
+    // Concrete API endpoint specifications
+    /\b(?:POST|GET|PUT|DELETE|PATCH)\s+\/(?:api|v1|v2|auth|users|sessions)\/[\w/{}-]+/i.test(content) ||
+    // Permanent file path architecture specifications
+    /\b(?:src\/(?:store|models|services|controllers|routes|core|utils)\/[\w-]+\.ts)\b/.test(content);
+
+  if (isTransient && !isArchitectural) {
+    return {
+      tier: 'transient',
+      confidence: 0.95,
+      reason: 'Classified as Transient Log (terminal/test/compiler output, stack trace, or PID).',
+    };
+  }
+
+  if (isArchitectural) {
+    return {
+      tier: 'architectural',
+      confidence: 0.95,
+      reason: 'Classified as Architectural Decision (permanent schema, configuration, contract, or design choice).',
+    };
+  }
+
+  return {
+    tier: 'conversational',
+    confidence: 0.7,
+    reason: 'Standard conversational or contextual turn.',
+  };
+}
+
 /**
  * Calculates specificity sub-score based on numbers, code snippets, file paths, and decision keywords.
  */
@@ -102,16 +171,7 @@ function calculateSpecificityScore(content: string): number {
 
   // 4. Decision / Architectural / Feature language
   if (
-    /\b(decided|agreed|will use|architecture|decision|feature|fix|fixed|must|error|bug|endpoint|spec|database|proxy|mcp|config|policy|priority|schema|tool|tools|mode|override|shadow|session|tokenizer|engine|model|port)\b/i.test(
-      content
-    )
-  ) {
-    scorePoints += 0.25;
-  }
-
-  // 5. Concrete named identifiers, lists & key values
-  if (
-    /\b(sqlite|better-sqlite3|xenova|miniLM|gpt-tokenizer|ink|react|ollama|vitest|sha-256|gitignore|statsbar|branchlist|committimeline|conflictalert|promotechunk|reason_log|hash_fallback|recall|commit|branch|merge|checkout)\b/i.test(
+    /\b(decided|agreed|will use|architecture|decision|feature|fix|fixed|must|schema|database|config|policy|endpoint)\b/i.test(
       content
     )
   ) {
@@ -174,10 +234,12 @@ export interface ScoreChunkOptions {
   recencyNormalized?: number; // 0.0 (oldest) to 1.0 (newest)
   contextText?: string;
   policy?: ScoringPolicy;
+  turnAge?: number;
 }
 
 /**
  * Scores a chunk of context and assigns triage label ('keep_verbatim' | 'summarize' | 'discard').
+ * Utilizes the Dual-Tier Text Categorization Filter to prune transient logs while locking architectural decisions.
  */
 export async function scoreChunk(
   chunkContent: string,
@@ -187,6 +249,42 @@ export async function scoreChunk(
   const contextText = options.contextText || '';
   const recency = options.recencyNormalized ?? 1.0;
 
+  // 1. Dual-Tier Classification
+  const classification = classifyTextTier(chunkContent);
+
+  // If classified as transient log, NEVER keep verbatim (prunes ephemeral debug/compiler/test garbage)
+  if (classification.tier === 'transient') {
+    return {
+      label: 'discard',
+      score: 0.1,
+      reason: `[Dual-Tier Filter: Transient Log] ${classification.reason}`,
+      tier: 'transient',
+      subScores: {
+        recency,
+        referenceFrequency: 0.1,
+        specificity: 0.1,
+        topicMatch: 0.1,
+      },
+    };
+  }
+
+  // If classified as permanent architectural decision, lock into keep_verbatim
+  if (classification.tier === 'architectural') {
+    return {
+      label: 'keep_verbatim',
+      score: 0.95,
+      reason: `[Dual-Tier Filter: Architectural Decision] ${classification.reason}`,
+      tier: 'architectural',
+      subScores: {
+        recency,
+        referenceFrequency: 0.9,
+        specificity: 1.0,
+        topicMatch: 0.9,
+      },
+    };
+  }
+
+  // 2. Standard Scoring for conversational content
   const referenceFrequency = calculateReferenceFrequency(chunkContent, contextText);
   const specificity = calculateSpecificityScore(chunkContent);
   const topicMatch = await calculateTopicMatch(chunkContent, contextText);
@@ -211,30 +309,25 @@ export async function scoreChunk(
   let label: TriageLabel = 'discard';
   let reason = '';
 
-  // Hard override: If chunk is highly specific (contains numbers, concrete identifiers, config/architecture decisions),
-  // force keep_verbatim regardless of age/recency.
-  if (specificity >= 0.45) {
+  if (score >= thresholds.keepVerbatim && specificity >= 0.5) {
     label = 'keep_verbatim';
-    reason = `Hard override: High specificity score (${specificity.toFixed(
+    reason = `High score (${score.toFixed(2)} >= ${thresholds.keepVerbatim}) and high specificity (${specificity.toFixed(
       2
-    )} >= 0.45). Specific architectural decisions and concrete values must be preserved verbatim regardless of turn age.`;
-  } else if (score >= thresholds.keepVerbatim) {
-    label = 'keep_verbatim';
-    reason = `High score (${score.toFixed(2)} >= ${thresholds.keepVerbatim}). High specificity (${specificity.toFixed(
-      2
-    )}) or strong topic relevance (${topicMatch.toFixed(2)}).`;
+    )}). Preserved verbatim.`;
   } else if (score >= thresholds.summarize) {
     label = 'summarize';
-    reason = `Moderate score (${score.toFixed(2)} >= ${thresholds.summarize}). Contains useful context that can be compressed.`;
+    reason = `Moderate score (${score.toFixed(2)} >= ${thresholds.summarize}). Context suitable for compression.`;
   } else {
     label = 'discard';
-    reason = `Low score (${score.toFixed(2)} < ${thresholds.summarize}). Low reference frequency and specificity.`;
+    reason = `Low score (${score.toFixed(2)} < ${thresholds.summarize}). Conversational filler discarded.`;
   }
 
   return {
     label,
     score,
     reason,
+    tier: 'conversational',
     subScores,
   };
 }
+

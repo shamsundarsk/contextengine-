@@ -1,28 +1,38 @@
-export const CONTEXT_ENGINE_INSTRUCTIONS = `# Context Engine — Memory & Version Control Instructions
+export const CONTEXT_ENGINE_INSTRUCTIONS = `# Context Engine — Memory & Version Control Instructions (Hybrid Control)
 
-You are equipped with Context Engine, a transparent versioned context-memory toolset.
-You must actively manage context memory across long sessions, complex refactoring tasks, and architectural decisions.
+You are equipped with Context Engine, a production-grade, local-first Model Context Protocol (MCP) memory system.
+It implements "Hybrid Control": automatic operations by default in the background, with full manual override on demand.
+
+## Hybrid Control Overview
+1. **Automatic by Default**:
+   - The engine automatically detects workspace directory/project shifts and spawns isolated branches (e.g., \`auto-branch-backend\`).
+   - An asynchronous background worker records conversation history, runs dual-tier triage filtering, and auto-commits compressed state every 5-10 turns.
+   - Ephemeral transient logs (compiler dumps, stack traces, test outputs) are automatically pruned after 3 turns, keeping only permanent architectural decisions.
+
+2. **Manual Override on Demand**:
+   - Power users can inspect the complete memory graph using \`get_context_tree()\`.
+   - Power users can surgically overwrite or prune any commit node using \`override_memory_node(commit_id, new_summary)\`.
 
 ## Tool Usage Directives
 
-1. **Mandatory Gather on New Chat / Context Reset (gather_context)**:
-   - At the beginning of EVERY new chat session, after a context reset, or when you lack context on prior decisions, call \`gather_context()\` IMMEDIATELY.
-   - This retrieves the full reconstructed memory (rolling summary and all preserved architectural decisions, schemas, and facts) from the project memory graph.
+1. **Context Initialization / Memory Restore (\`gather_context\`)**:
+   - Call \`gather_context()\` on new chat sessions or context resets to retrieve the bounded context memory and preserved architectural facts.
 
-2. **Commit Key Decisions & Discoveries (commit)**:
-   - Whenever you achieve a milestone, figure out a core bug, confirm an API schema, or make an architectural choice, call \`commit(topic, summary, kept_refs)\`.
-   - Explicitly list critical code snippet references or facts in kept_refs to ensure they are preserved verbatim in context.
+2. **Visual Memory Inspection (\`get_context_tree\`)**:
+   - Call \`get_context_tree()\` to view the formatted markdown text graph tree of all active branches, commits, and memory statistics.
 
-3. **Targeted Recall (recall)**:
-   - When searching for specific past facts or code patterns by keyword or semantic topic, call \`recall(query, scope)\`.
+3. **Surgical Memory Correction (\`override_memory_node\`)**:
+   - If an incorrect detail or debug junk was stored in history, call \`override_memory_node(commit_id, new_summary)\` to overwrite it and prune out transient chunks.
 
-4. **Branching (branch)**:
-   - Before trying an experimental approach, refactoring, or working on an isolated feature, call \`branch(name)\` to isolate context changes.
+4. **Explicit Architectural Milestone (\`commit\`)**:
+   - Call \`commit(topic, summary, kept_refs)\` to immediately lock critical design choices, schemas, or bug fixes into the permanent database.
 
-5. **Merging (merge)**:
-   - Once an experimental feature or subtask is complete and verified, merge it back into main using \`merge(source_branch, target_branch)\`.
-   - If a conflict is reported (due to conflicting facts), review the conflict details and refine your commits.
+5. **Targeted Fact Retrieval (\`recall\`)**:
+   - Query previous commits and facts using keyword or semantic search via \`recall(query, scope)\`.
 
-6. **Checking Out (checkout)**:
-   - Use \`checkout(commit_id)\` to roll back context memory to a previous known stable state if an approach is abandoned.
+6. **Branching & Version Control (\`branch\`, \`merge\`, \`checkout\`)**:
+   - Isolate experimental refactors with \`branch(name)\`.
+   - Merge completed branches with \`merge(source_branch, target_branch)\`.
+   - Roll back context memory if needed with \`checkout(commit_id)\`.
 `;
+

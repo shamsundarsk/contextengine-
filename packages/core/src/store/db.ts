@@ -1,8 +1,17 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 let dbInstance: Database.Database | null = null;
+
+export function getDefaultDbPath(): string {
+  if (process.env.DB_PATH) {
+    return process.env.DB_PATH;
+  }
+  const baseDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  return path.join(baseDir, 'context-engine', 'context.db');
+}
 
 export function getDatabase(dbPath?: string): Database.Database {
   if (dbInstance) {
@@ -11,34 +20,10 @@ export function getDatabase(dbPath?: string): Database.Database {
 
   let targetPath = dbPath || process.env.DB_PATH;
 
-  if (targetPath && !path.isAbsolute(targetPath) && targetPath !== ':memory:') {
-    const parentDbPath = path.resolve(process.cwd(), '../context.db');
-    const grandParentDbPath = path.resolve(process.cwd(), '../../context.db');
-    const directDbPath = path.resolve(process.cwd(), 'context.db');
-
-    if (fs.existsSync(parentDbPath)) {
-      targetPath = parentDbPath;
-    } else if (fs.existsSync(grandParentDbPath)) {
-      targetPath = grandParentDbPath;
-    } else if (fs.existsSync(directDbPath)) {
-      targetPath = directDbPath;
-    } else {
-      targetPath = path.resolve(process.cwd(), targetPath);
-    }
-  }
-
   if (!targetPath) {
-    const parentDbPath = path.resolve(process.cwd(), '../context.db');
-    const grandParentDbPath = path.resolve(process.cwd(), '../../context.db');
-    const directDbPath = path.resolve(process.cwd(), 'context.db');
-
-    if (fs.existsSync(parentDbPath)) {
-      targetPath = parentDbPath;
-    } else if (fs.existsSync(grandParentDbPath)) {
-      targetPath = grandParentDbPath;
-    } else {
-      targetPath = directDbPath;
-    }
+    targetPath = getDefaultDbPath();
+  } else if (!path.isAbsolute(targetPath) && targetPath !== ':memory:') {
+    targetPath = path.resolve(process.cwd(), targetPath);
   }
 
   if (targetPath !== ':memory:') {
@@ -51,6 +36,7 @@ export function getDatabase(dbPath?: string): Database.Database {
   dbInstance = new Database(targetPath);
   dbInstance.pragma('journal_mode = WAL');
   dbInstance.pragma('foreign_keys = ON');
+  dbInstance.pragma('synchronous = NORMAL');
 
   initSchema(dbInstance);
   return dbInstance;
@@ -68,6 +54,12 @@ export function closeDatabase(): void {
   }
 }
 
+export function initInMemoryDatabase(): Database.Database {
+  const db = new Database(':memory:');
+  setDatabase(db);
+  return db;
+}
+
 export function initSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS commits (
@@ -78,6 +70,7 @@ export function initSchema(db: Database.Database): void {
       timestamp INTEGER NOT NULL,
       topic_label TEXT NOT NULL,
       reason_log TEXT NOT NULL,
+      turn INTEGER DEFAULT 0,
       FOREIGN KEY (parent_id) REFERENCES commits(id) ON DELETE SET NULL
     );
 
@@ -86,6 +79,9 @@ export function initSchema(db: Database.Database): void {
       commit_id TEXT NOT NULL,
       content TEXT NOT NULL,
       label TEXT NOT NULL,
+      tier TEXT DEFAULT 'conversational',
+      turn INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT 0,
       source_ref TEXT,
       FOREIGN KEY (commit_id) REFERENCES commits(id) ON DELETE CASCADE
     );
@@ -122,4 +118,39 @@ export function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_branches_session ON branches(session_id);
     CREATE INDEX IF NOT EXISTS idx_conflicts_session ON conflicts(session_id);
   `);
+
+  // Migrate existing tables if columns missing before creating tier index
+  try {
+    const chunkInfo = db.prepare('PRAGMA table_info(chunks)').all() as { name: string }[];
+    const chunkCols = new Set(chunkInfo.map((c) => c.name));
+    if (!chunkCols.has('tier')) {
+      db.exec("ALTER TABLE chunks ADD COLUMN tier TEXT DEFAULT 'conversational'");
+    }
+    if (!chunkCols.has('turn')) {
+      db.exec('ALTER TABLE chunks ADD COLUMN turn INTEGER DEFAULT 0');
+    }
+    if (!chunkCols.has('created_at')) {
+      db.exec('ALTER TABLE chunks ADD COLUMN created_at INTEGER DEFAULT 0');
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  try {
+    const commitInfo = db.prepare('PRAGMA table_info(commits)').all() as { name: string }[];
+    const commitCols = new Set(commitInfo.map((c) => c.name));
+    if (!commitCols.has('turn')) {
+      db.exec('ALTER TABLE commits ADD COLUMN turn INTEGER DEFAULT 0');
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  try {
+    db.exec('CREATE INDEX IF NOT EXISTS idx_chunks_tier_turn ON chunks(tier, turn)');
+  } catch {
+    // Non-fatal
+  }
 }
+
+

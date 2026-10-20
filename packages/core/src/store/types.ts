@@ -1,12 +1,16 @@
 export type TriageLabel = 'keep_verbatim' | 'summarize' | 'discard';
+export type LogTier = 'transient' | 'architectural' | 'conversational';
 
 export interface Chunk {
   id: string;
   commit_id: string;
   content: string;
   label: TriageLabel;
+  tier?: LogTier;
+  turn?: number;
   source_ref?: string;
   token_count?: number;
+  created_at?: number;
 }
 
 export interface Commit {
@@ -17,6 +21,7 @@ export interface Commit {
   timestamp: number;
   topic_label: string;
   reason_log: string;
+  turn?: number;
   chunks?: Chunk[];
 }
 
@@ -66,6 +71,7 @@ export interface ScoringResult {
   score: number;
   reason: string;
   subScores: SubScores;
+  tier?: LogTier;
 }
 
 export interface ReconstructedContext {
@@ -98,4 +104,26 @@ export interface SessionSummary {
   commitCount: number;
   lastActive: number;
   activeBranch: string;
+}
+
+export interface OverrideNodeOptions {
+  new_summary?: string;
+  new_topic?: string;
+  prune_transient?: boolean;
+  kept_chunks?: string[];
+  discard_chunk_ids?: string[];
+}
+
+export interface ContextTreeNode {
+  id: string;
+  parentId: string | null;
+  branch: string;
+  timestamp: number;
+  topicLabel: string;
+  reasonLog: string;
+  chunkCount: number;
+  keptFactsCount: number;
+  transientCount: number;
+  isHead: boolean;
+  children: ContextTreeNode[];
 }

@@ -3,6 +3,11 @@
   "version": "0.1.0-beta.1",
   "private": true,
   "description": "Versioned, transparent context-memory system for LLM agents",
+  "mcpName": "context-engine",
+  "bin": {
+    "context-engine-mcp": "./packages/mcp-server/bin/context-engine-mcp.js",
+    "@context-engine/mcp-server": "./packages/mcp-server/bin/context-engine-mcp.js"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -10,14 +15,16 @@
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "dev:core": "npm run dev -w packages/core",
-    "dev:proxy": "npm run dev -w packages/proxy",
     "dev:mcp": "npm run dev -w packages/mcp-server",
     "dev:cli": "npm run dev -w packages/cli",
     "dev:web": "npm run dev -w packages/web",
-    "dev": "concurrently \"npm run dev:proxy\" \"npm run dev:web\""
+    "dev": "npm run dev:mcp",
+    "test:live": "tsx scripts/test_mcp_live.ts",
+    "start": "node packages/mcp-server/dist/server.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "typescript": "^5.4.5"
   }
 }
+
