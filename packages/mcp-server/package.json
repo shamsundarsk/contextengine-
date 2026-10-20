@@ -1,14 +1,15 @@
 {
   "name": "@sham-sundar-senthil-kumar/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP (Model Context Protocol) server for Context Engine",
   "main": "dist/server.js",
   "bin": {
-    "context-engine-mcp": "dist/server.js",
-    "@sham-sundar-senthil-kumar/mcp-server": "dist/server.js"
+    "context-engine-mcp": "./bin/context-engine-mcp.js"
   },
+  "mcpName": "io.github.shamsundarsk/mcp-server",
   "files": [
     "dist",
+    "bin",
     "src"
   ],
   "publishConfig": {
