@@ -1,6 +1,6 @@
 {
   "$schema": "https://modelcontextprotocol.io",
-  "name": "sham-sundar-senthil-kumar/context-engine",
+  "name": "io.github.shamsundarsk/context-engine",
   "version": "0.1.1",
   "description": "Autonomous Local-First Model Context Protocol Memory Server",
   "transport": "stdio",
