@@ -1,15 +1,19 @@
 {
-  "$schema": "https://modelcontextprotocol.io",
-  "name": "io.github.shamsundarsk/context-engine",
-  "version": "0.1.1",
-  "description": "Autonomous Local-First Model Context Protocol Memory Server",
-  "sourceUrl": "https://github.com",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.shamsundarsk/mcp-server",
+  "title": "Context Engine",
+  "description": "Local-first persistent context memory MCP server for AI coding agents.",
+  "repository": {
+    "url": "https://github.com/shamsundarsk/contextengine-",
+    "source": "github",
+    "subfolder": "packages/mcp-server"
+  },
+  "version": "0.1.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sham-sundar-senthil-kumar/mcp-server",
-      "version": "0.1.1",
-      "runtimeHint": "node",
+      "version": "0.1.2",
       "transport": {
         "type": "stdio"
       }
