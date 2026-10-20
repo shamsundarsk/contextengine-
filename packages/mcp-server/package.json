@@ -1,6 +1,6 @@
 {
   "name": "@shamsundarsk/mcp-server",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0",
   "description": "MCP (Model Context Protocol) server for Context Engine",
   "main": "dist/server.js",
   "bin": {
