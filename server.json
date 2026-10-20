@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "context-engine",
+  "description": "Versioned, transparent context-memory system for LLM agents",
+  "repository": {
+    "url": "https://github.com/shamsundarsk/contextengine-",
+    "source": "github"
+  },
+  "version": "0.1.0-beta.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "context-engine-monorepo",
+      "version": "0.1.0-beta.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "Your API key for the service",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true,
+          "name": "YOUR_API_KEY"
+        }
+      ]
+    }
+  ]
+}
