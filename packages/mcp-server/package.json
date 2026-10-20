@@ -1,11 +1,19 @@
 {
-  "name": "@context-engine/mcp-server",
+  "name": "@shamsundarsk/mcp-server",
   "version": "0.1.0-beta.1",
   "description": "MCP (Model Context Protocol) server for Context Engine",
   "main": "dist/server.js",
   "bin": {
     "context-engine-mcp": "./bin/context-engine-mcp.js",
-    "@context-engine/mcp-server": "./bin/context-engine-mcp.js"
+    "@shamsundarsk/mcp-server": "./bin/context-engine-mcp.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
