@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Context Engine Memory Dial",
+      "trigger": "UserPromptSubmit",
+      "description": "On every prompt, silently checks the context engine for new commits since session start. If new commits exist, calls gather_context() to update memory before responding.",
+      "action": {
+        "type": "agent",
+        "prompt": "CONTEXT ENGINE DIAL — Before responding to this prompt:\n\n1. If you have NOT called gather_context() yet in this session, call it now.\n2. If the user's message involves a completed task, architectural decision, bug fix, or confirmed configuration — call commit() with a structured entry:\n   - topic: \"[Category] Short title\" (e.g. \"[Bug Fix] Branch selection revert\", \"[Feature] Projects landing page\", \"[Config] Port 3001\")\n   - summary: 1-2 sentences explaining what was done and why\n   - kept_refs: exact code snippets, values, or facts that must survive context resets\n3. Do NOT commit for casual conversation or questions — only for concrete work done.\n4. After any commit, continue responding normally without mentioning the commit."
+      }
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "questionNum": 1,
+    "turn": 10,
+    "question": "What database engine, embedding model, and proxy port did we select?",
+    "directLatencyMs": 307,
+    "proxyLatencyMs": 351,
+    "directAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "proxyAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "retainedAllFacts": true
+  },
+  {
+    "questionNum": 2,
+    "turn": 20,
+    "question": "What is the session resolution priority order?",
+    "directLatencyMs": 419,
+    "proxyLatencyMs": 272,
+    "directAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "proxyAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "retainedAllFacts": false
+  },
+  {
+    "questionNum": 3,
+    "turn": 20,
+    "question": "How does manual override history work?",
+    "directLatencyMs": 440,
+    "proxyLatencyMs": 436,
+    "directAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "proxyAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "retainedAllFacts": false
+  },
+  {
+    "questionNum": 4,
+    "turn": 30,
+    "question": "List the 5 MCP tools.",
+    "directLatencyMs": 270,
+    "proxyLatencyMs": 335,
+    "directAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "proxyAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "retainedAllFacts": false
+  },
+  {
+    "questionNum": 5,
+    "turn": 30,
+    "question": "Explain how shadow mode functions.",
+    "directLatencyMs": 363,
+    "proxyLatencyMs": 348,
+    "directAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "proxyAnswerText": "Based on the conversation context, the architectural decisions are:\n- Database Engine: SQLite (using better-sqlite3)\n- Embedding Model: Xenova/all-MiniLM-L6-v2 running in-process\n- Proxy Port: 4000 (Web Port: 3000)",
+    "retainedAllFacts": false
+  }
+]

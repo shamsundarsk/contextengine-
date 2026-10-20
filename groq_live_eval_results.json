@@ -1,0 +1,91 @@
+{
+  "modelName": "openai/gpt-oss-20b",
+  "directTotalInputTokens": 11044,
+  "proxyTotalInputTokens": 8227,
+  "tokensSaved": 2817,
+  "tokensSavedPct": 26,
+  "factRetention": "5/5",
+  "results": [
+    {
+      "qNum": 1,
+      "turn": 10,
+      "question": "Answer concisely: What database engine, embedding model, and proxy port did we select?",
+      "expectedFactDesc": "Database Engine (SQLite), Embedding Model (Xenova/all-MiniLM-L6-v2), Proxy Port (4000)",
+      "expectedSubstrings": [
+        "sqlite",
+        "xenova",
+        "4000"
+      ],
+      "directLatencyMs": 310,
+      "proxyLatencyMs": 922,
+      "directAnswer": "- **Database engine:** SQLite (via better‑sqlite3)  \n- **Embedding model:** Xenova/all‑MiniLM‑L6‑v2 (in‑process)  \n- **Proxy server port:** 4000",
+      "proxyAnswer": "SQLite (better‑sqlite3), Xenova/all‑MiniLM‑L6‑v2, and proxy port 4000.",
+      "pass": true
+    },
+    {
+      "qNum": 2,
+      "turn": 20,
+      "question": "Answer concisely: What is the session resolution priority order?",
+      "expectedFactDesc": "Session Priority Order (header > metadata > query > hash_fallback)",
+      "expectedSubstrings": [
+        "header",
+        "metadata",
+        "query",
+        "fallback"
+      ],
+      "directLatencyMs": 247,
+      "proxyLatencyMs": 859,
+      "directAnswer": "**Session resolution priority order:**  \n1. Header  \n2. Metadata  \n3. Query  \n4. Hash fallback",
+      "proxyAnswer": "Header → Metadata → Query → Hash fallback.",
+      "pass": true
+    },
+    {
+      "qNum": 3,
+      "turn": 20,
+      "question": "Answer concisely: How does manual override history work?",
+      "expectedFactDesc": "Manual Override Behavior (append new commit with override reason_log)",
+      "expectedSubstrings": [
+        "commit",
+        "override"
+      ],
+      "directLatencyMs": 730,
+      "proxyLatencyMs": 664,
+      "directAnswer": "Manual overrides are recorded by **promoteChunk** adding a new commit that contains an `override_reason_log`. Each override creates a distinct commit in the history, so you can trace when and why a manual change was made.",
+      "proxyAnswer": "Manual overrides are recorded by appending a new commit that contains the overridden chunk and an **override reason_log**. Each override creates a distinct commit in the history, preserving the original content and documenting why the override was made.",
+      "pass": true
+    },
+    {
+      "qNum": 4,
+      "turn": 30,
+      "question": "Answer concisely: List the 5 MCP tools.",
+      "expectedFactDesc": "5 MCP Tools (recall, commit, branch, merge, checkout)",
+      "expectedSubstrings": [
+        "recall",
+        "commit",
+        "branch",
+        "merge",
+        "checkout"
+      ],
+      "directLatencyMs": 613,
+      "proxyLatencyMs": 1445,
+      "directAnswer": "recall, commit, branch, merge, checkout.",
+      "proxyAnswer": "recall, commit, branch, merge, checkout.",
+      "pass": true
+    },
+    {
+      "qNum": 5,
+      "turn": 30,
+      "question": "Answer concisely: Explain how shadow mode functions.",
+      "expectedFactDesc": "Shadow Mode (logs token savings, forwards original payload)",
+      "expectedSubstrings": [
+        "shadow",
+        "token"
+      ],
+      "directLatencyMs": 700,
+      "proxyLatencyMs": 612,
+      "directAnswer": "Shadow mode runs the request through the normal pipeline but **does not alter the payload** that is sent to the downstream service. Instead, it captures the token usage of the original request and the processed response, logs the difference (token savings), and forwards the original unmodified data unchanged. This lets you measure efficiency without affecting real traffic.",
+      "proxyAnswer": "Shadow mode runs the request in the background: it forwards the original, unmodified payload to the LLM, logs the token savings achieved, and returns the normal response to the client.",
+      "pass": true
+    }
+  ]
+}

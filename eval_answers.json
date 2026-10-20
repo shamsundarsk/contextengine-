@@ -1,0 +1,40 @@
+[
+  {
+    "turn": 10,
+    "question": "RECALL QUESTION 1: What database engine, embedding model, and proxy port did we select?",
+    "direct_context_snippet": "cussion about coffee break preferences.\nuser: Architecture decision 5: MCP server registers 5 tools: recall, commit, branch, merge, checkout.\nuser: Architecture decision 6: Database table schema includes commits, chunks, branches, conflicts, summary_cache.\nuser: RECALL QUESTION 1: What database engine, embedding model, and proxy port did we select?",
+    "proxy_context_snippet": "-tokenizer for OpenAI and 10% fudge factor for Claude.\n\nArchitecture decision 5: MCP server registers 5 tools: recall, commit, branch, merge, checkout.\n\nArchitecture decision 6: Database table schema includes commits, chunks, branches, conflicts, summary_cache.\n\nRECALL QUESTION 1: What database engine, embedding model, and proxy port did we select?",
+    "direct_answer": "Database Engine: SQLite (better-sqlite3). Embedding Model: Xenova/all-MiniLM-L6-v2. Proxy Port: 4000.",
+    "proxy_answer": "Database Engine: SQLite (better-sqlite3). Embedding Model: Xenova/all-MiniLM-L6-v2. Proxy Port: 4000.",
+    "fact_retention_check": {
+      "question_1_db_embedding_port": true,
+      "missing_facts_notes": "All facts retained (SQLite, Xenova/all-MiniLM-L6-v2, Port 4000)."
+    }
+  },
+  {
+    "turn": 20,
+    "question": "RECALL QUESTION 2 & 3: What is the session resolution priority order, and how does manual override history work?",
+    "direct_context_snippet": "reason_log.\nuser: Chatter: Specifying test timeouts and Vitest configurations.\nuser: Feature 6: Local LLMs like Ollama are supported via LOCAL_LLM_BASE_URL env var.\nuser: Feature 7: Proxy binds to 127.0.0.1 by default for security.\nuser: RECALL QUESTION 2 & 3: What is the session resolution priority order, and how does manual override history work?",
+    "proxy_context_snippet": ".\n\nFeature 5: Manual overrides via promoteChunk append a new commit with override reason_log.\n\nFeature 6: Local LLMs like Ollama are supported via LOCAL_LLM_BASE_URL env var.\n\nFeature 7: Proxy binds to 127.0.0.1 by default for security.\n\nRECALL QUESTION 2 & 3: What is the session resolution priority order, and how does manual override history work?",
+    "direct_answer": "Session Priority: header > metadata > query > hash_fallback. Manual Overrides: Append a new commit with override reason_log without mutating history in-place.",
+    "proxy_answer": "Session Priority: header > metadata > query > hash_fallback. Manual Overrides: Appends a new commit with override reason_log.",
+    "fact_retention_check": {
+      "question_2_session_priority": true,
+      "question_3_manual_override": true,
+      "missing_facts_notes": "All facts retained (priority order & manual override append behavior)."
+    }
+  },
+  {
+    "turn": 30,
+    "question": "RECALL QUESTION 4 & 5: List the 5 MCP tools and explain how shadow mode functions.",
+    "direct_context_snippet": "ME structure and badges.\nuser: Polish 5: Root gitignore excludes .env, context.db, node_modules, dist.\nuser: Polish 6: Evaluation script replays 30 turns and logs tokens, cost, latency, and recall answers.\nuser: Chatter: Final verification steps before release.\nuser: RECALL QUESTION 4 & 5: List the 5 MCP tools and explain how shadow mode functions.",
+    "proxy_context_snippet": "pikes.\n\nPolish 4: Summary cache avoids re-summarizing unchanged chunks using SHA-256 hash keys.\n\nPolish 5: Root gitignore excludes .env, context.db, node_modules, dist.\n\nPolish 6: Evaluation script replays 30 turns and logs tokens, cost, latency, and recall answers.\n\nRECALL QUESTION 4 & 5: List the 5 MCP tools and explain how shadow mode functions.",
+    "direct_answer": "5 MCP Tools: recall, commit, branch, merge, checkout. Shadow Mode: Logs token savings while forwarding the original unmodified payload downstream.",
+    "proxy_answer": "5 MCP Tools: recall, commit, branch, merge, checkout. Shadow Mode: Logs token savings while forwarding the original payload.",
+    "fact_retention_check": {
+      "question_4_mcp_tools": true,
+      "question_5_shadow_mode": true,
+      "missing_facts_notes": "All facts retained (5 MCP tools & shadow mode behavior)."
+    }
+  }
+]

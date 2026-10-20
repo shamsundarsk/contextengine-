@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Context Engine — Auto-Load Memory on Session Start",
+      "trigger": "SessionStart",
+      "description": "Automatically loads context engine memory at the start of every new Kiro chat session, replacing reliance on the built-in context window for project history.",
+      "action": {
+        "type": "agent",
+        "prompt": "CONTEXT ENGINE MEMORY RESTORE — MANDATORY\n\nYou are starting a new chat session. Before responding to anything, you MUST immediately call `gather_context()` via MCP to load all previously committed architectural decisions, bug fixes, configuration values, and project facts from the context engine database.\n\nThis replaces your reliance on the built-in context window for project memory. The context engine is the source of truth for this project's history — not your context window.\n\nAfter calling gather_context(), confirm the active session/branch and then proceed normally."
+      }
+    }
+  ]
+}

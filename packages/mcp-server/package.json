@@ -1,0 +1,26 @@
+{
+  "name": "@context-engine/mcp-server",
+  "version": "0.1.0-beta.1",
+  "description": "MCP (Model Context Protocol) server for Context Engine",
+  "main": "dist/server.js",
+  "bin": {
+    "context-engine-mcp": "./bin/context-engine-mcp.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@context-engine/core": "*",
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "tsx": "^4.15.7",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

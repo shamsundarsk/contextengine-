@@ -1,0 +1,757 @@
+================================================================================
+  CONTEXT ENGINE — FULL ARCHITECTURE & NLP DOCUMENTATION
+  Generated: October 2026
+================================================================================
+
+TABLE OF CONTENTS
+  1. What Is Context Engine
+  2. Why It Exists (The Problem)
+  3. System Architecture Overview
+  4. Package Breakdown
+  5. NLP Pipeline — Where & How We Use It
+     5a. Token Counting (tokenizer.ts)
+     5b. Triage Scoring (scorer.ts)
+     5c. Semantic Embeddings (scorer.ts — computeEmbedding)
+     5d. Summarization (summarizer.ts)
+     5e. Recall Search (tools.ts — handleRecall)
+     5f. Context Reconstruction (graph.ts — reconstructContext)
+  6. Data Flow: End-to-End Commit Lifecycle
+  7. Database Schema
+  8. MCP Tool Reference
+  9. REST API Reference
+  10. CLI Command Reference
+  11. Kiro Integration (Hooks + Steering)
+  12. Configuration & Environment Variables
+  13. Known Limitations & Notes
+
+================================================================================
+  1. WHAT IS CONTEXT ENGINE
+================================================================================
+
+Context Engine is a versioned, persistent memory system for AI coding assistants.
+It works as a drop-in layer between you and Kiro (or any MCP-compatible AI IDE),
+storing architectural decisions, bug fixes, config values, and code facts in a
+local SQLite database across sessions.
+
+Think of it as "git for AI context" — it gives you branches, commits, merges,
+and checkouts, but for the information the AI holds in its head, not your code.
+
+Core guarantee:
+  When your context window fills up and Kiro starts a new chat, it calls
+  gather_context() and gets back everything that was committed — not a degraded
+  summary from its own context window, but a structured, versioned memory block.
+
+================================================================================
+  2. WHY IT EXISTS — THE PROBLEM
+================================================================================
+
+LLMs have a finite context window. In long coding sessions:
+  - Earlier decisions get pushed out and forgotten
+  - When a new chat starts, the AI has no memory of past sessions
+  - The AI re-asks questions you already answered
+  - Bugs you fixed come back because the fix rationale is gone
+  - Kiro's built-in context compaction is lossy (it summarizes and drops things)
+
+Context Engine solves this by:
+  1. Storing commits (decisions, facts, code refs) in SQLite permanently
+  2. Reconstructing them on demand via gather_context()
+  3. Using NLP (scoring + summarization) to decide what to keep verbatim vs compress
+  4. Giving you branches so experimental sessions don't pollute main memory
+
+================================================================================
+  3. SYSTEM ARCHITECTURE OVERVIEW
+================================================================================
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                            KIRO (AI IDE)                                │
+  │  UserPromptSubmit hook ──► commit reminder                              │
+  │  SessionStart hook ──────► gather_context() auto-load                  │
+  │  .kiro/steering/*.md ───► always-on rules injected into every prompt   │
+  └────────────────────────────────┬────────────────────────────────────────┘
+                                   │ MCP (stdio)
+                                   ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                    packages/mcp-server  (port: stdio)                   │
+  │  Tools: gather_context, commit, recall, branch, merge, checkout         │
+  │  Entry: packages/mcp-server/src/server.ts                               │
+  │  Handlers: packages/mcp-server/src/tools.ts                             │
+  └────────────────────────────────┬────────────────────────────────────────┘
+                                   │ imports
+                                   ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                        packages/core  (library)                         │
+  │  tokenizer.ts  ── token counting (gpt-tokenizer + Anthropic fudge)      │
+  │  scorer.ts     ── NLP scoring: recency, specificity, embedding sim      │
+  │  summarizer.ts ── LLM + extractive fallback summarization               │
+  │  store/graph.ts── all DB operations (commits, branches, sessions)       │
+  │  store/db.ts   ── SQLite init, schema, connection                       │
+  └────────────────────────────────┬────────────────────────────────────────┘
+                                   │ same DB file
+                                   ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                     context.db  (SQLite, project root)                  │
+  │  Tables: commits, chunks, branches, conflicts, summary_cache            │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                   ▲
+                    ┌──────────────┴──────────────┐
+                    │                             │
+  ┌─────────────────┴────────┐    ┌───────────────┴──────────────┐
+  │  packages/web            │    │  packages/cli                │
+  │  React dashboard         │    │  Terminal commands           │
+  │  Vite frontend: :3000    │    │  context-engine status       │
+  │  Express API: :3001      │    │  context-engine log          │
+  │  Projects landing page   │    │  context-engine branches     │
+  │  Branch list, commit log │    │  context-engine sessions     │
+  │  StatCards, modals       │    │  context-engine watch (TUI)  │
+  └──────────────────────────┘    └──────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                     packages/proxy  (optional)                          │
+  │  Intercepts OpenAI / Anthropic API calls                                │
+  │  Injects context engine memory into system prompts automatically        │
+  │  Providers: openai.ts, anthropic.ts  |  Port: 4000                      │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+  4. PACKAGE BREAKDOWN
+================================================================================
+
+packages/core/
+  The brain. Pure TypeScript library, no framework dependencies.
+  Used by every other package via the workspace "*" dep.
+  
+  src/
+    index.ts         — re-exports everything (single entry point)
+    tokenizer.ts     — token counting
+    scorer.ts        — NLP scoring engine + embedding computation
+    summarizer.ts    — LLM + extractive summarization
+    store/
+      db.ts          — SQLite connection, schema init
+      graph.ts       — all CRUD: commits, branches, sessions, reconstruct
+      types.ts       — shared TypeScript interfaces
+
+packages/mcp-server/
+  MCP server that Kiro talks to via stdio.
+  
+  src/
+    server.ts        — MCP transport setup, tool registration, routing
+    tools.ts         — all 6 tool handlers (gather_context, commit, recall,
+                        branch, merge, checkout)
+    instructions.ts  — system prompt / instructions text for the MCP server
+    dial.ts          — lightweight status check script (used by hooks)
+
+packages/web/
+  The dashboard you see in the browser.
+  
+  src/
+    App.tsx                         — root component, view router (projects/dashboard)
+    api.ts                          — fetch wrappers for the REST API
+    components/
+      ProjectsLanding.tsx           — landing page with session/project cards
+      BranchList.tsx                — left sidebar branch selector
+      CommitTimeline.tsx            — commit history list
+      CommitDetailModal.tsx         — click-through commit detail + promote
+      StatCards.tsx                 — 4 top metric cards
+      ConflictAlert.tsx             — merge conflict banner
+      ContextGatherer.tsx           — "Inspect Context" search modal
+  server/
+    api.ts                          — Express REST server on :3001
+
+packages/cli/
+  Terminal-first interface. Uses Ink (React for terminals) for the TUI.
+  
+  src/
+    index.tsx        — commander.js CLI, all commands
+    api.ts           — direct core imports (no HTTP, reads DB directly)
+    components/
+      StatsBar.tsx   — terminal stats row
+      BranchList.tsx — terminal branch list
+      CommitLog.tsx  — terminal commit log
+
+packages/proxy/
+  HTTP proxy that sits between the AI client and OpenAI/Anthropic.
+  Intercepts calls, injects context memory into system prompts.
+  
+  src/
+    server.ts        — proxy HTTP server entry
+    session.ts       — session management per connection
+    forwarder.ts     — request forwarding + response streaming
+    providers/
+      openai.ts      — OpenAI-specific injection
+      anthropic.ts   — Anthropic-specific injection
+      base.ts        — shared provider logic
+
+================================================================================
+  5. NLP PIPELINE — WHERE & HOW WE USE IT
+================================================================================
+
+This is the core of Context Engine. There are 6 distinct NLP operations:
+
+────────────────────────────────────────────────────────────────────────────────
+  5a. TOKEN COUNTING
+  File: packages/core/src/tokenizer.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Purpose:
+  Measure how many tokens each chunk consumes so we can track savings and
+  decide when compression is needed.
+
+How it works:
+  - Uses the `gpt-tokenizer` library (BPE tokenizer, same as GPT-4/4o)
+  - For OpenAI models: use token count directly
+  - For Anthropic (Claude) models: multiply by 1.1 (documented 10% fudge factor)
+  
+  Function: countTokens(text, model?)
+    → Uses gpt-tokenizer's encode() which implements BPE (Byte Pair Encoding)
+    → BPE splits text into subword units matching the model's vocabulary
+    → Returns token count
+
+  Function: countTotalTokens(texts[], model?)
+    → Sum of countTokens across an array
+
+Used in:
+  - getStats() in graph.ts: calculates totalOriginalTokens, totalOptimizedTokens,
+    tokensSavedPct, estimatedCostSavedUSD for the StatCards in the web UI
+  - scoreChunk() indirectly (chunks with known token counts get scored)
+
+NLP concept: Byte Pair Encoding (BPE)
+  BPE is a subword tokenization algorithm. It starts with individual characters
+  and iteratively merges the most frequent adjacent pairs. This means common words
+  like "function" are 1 token, rare words get split ("refactoring" = 3 tokens).
+  The exact vocabulary determines token boundaries, which is why different models
+  have different counts for the same text.
+
+────────────────────────────────────────────────────────────────────────────────
+  5b. TRIAGE SCORING — WHAT GETS KEPT VS COMPRESSED VS DROPPED
+  File: packages/core/src/scorer.ts → scoreChunk()
+────────────────────────────────────────────────────────────────────────────────
+
+Purpose:
+  Every piece of content that flows through Context Engine gets scored.
+  The score determines its triage label:
+    keep_verbatim → preserved exactly, never compressed
+    summarize     → compressed via LLM/extractive summary
+    discard       → dropped entirely
+
+NOTE: In the current MCP workflow, the AI itself assigns labels via the
+commit() call (passing content to kept_refs = keep_verbatim, summary text
+= summarize). The scoreChunk() function is used for proxy-mode where raw
+content is scored automatically without AI intervention.
+
+The scoring formula:
+  score = (
+    recency             × 0.25  +
+    referenceFrequency  × 0.25  +
+    specificity         × 0.25  +
+    topicMatch          × 0.25
+  ) / totalWeight
+
+  Thresholds (default):
+    score >= 0.65 → keep_verbatim
+    score >= 0.35 → summarize
+    score <  0.35 → discard
+
+  Hard override: if specificity >= 0.45 → ALWAYS keep_verbatim
+    (config values, port numbers, code paths are too important to lose)
+
+Sub-scores explained:
+
+  RECENCY (0.0 → 1.0)
+    Normalized position in commit timeline.
+    Newest commit = 1.0, oldest = 0.0.
+    More recent decisions are weighted higher (decays over time).
+    Implementation: caller passes recencyNormalized based on commit index.
+
+  REFERENCE FREQUENCY (0.0 → 1.0)
+    How often the words in this chunk appear in surrounding context.
+    Algorithm: keyword overlap ratio
+      1. Extract all words 4+ chars from the chunk
+      2. Check how many appear in the broader context text
+      3. score = matchCount / totalWords
+    NLP concept: Term frequency / context overlap (simplified TF-IDF intuition)
+
+  SPECIFICITY (0.0 → 1.0, computed by calculateSpecificityScore)
+    Rule-based regex scoring that measures how "concrete" the content is.
+    Adds 0.25 for each of these categories found:
+      - Code patterns: backtick blocks, JS keywords (const/let/function/class/import)
+      - File paths, URLs, env vars, model identifiers
+      - Numbers, percentages, ports, metrics
+      - Decision/architectural language (decided, fixed, endpoint, config, schema, etc.)
+      - Specific named identifiers (better-sqlite3, xenova, gpt-tokenizer, etc.)
+    Max score: 1.0 (caps at 4 categories matched × 0.25)
+    NLP concept: Rule-based Named Entity Recognition (NER) / feature detection
+
+  TOPIC MATCH (0.0 → 1.0, computed by calculateTopicMatch)
+    Semantic similarity between the chunk and the overall context.
+    Primary: cosine similarity on sentence embeddings (see 5c)
+    Fallback: Jaccard similarity (word overlap ratio)
+      Jaccard = |intersection| / |union| of word sets
+    NLP concept: Semantic textual similarity
+
+────────────────────────────────────────────────────────────────────────────────
+  5c. SEMANTIC EMBEDDINGS
+  File: packages/core/src/scorer.ts → computeEmbedding(), cosineSimilarity()
+────────────────────────────────────────────────────────────────────────────────
+
+Purpose:
+  Turn text into a numerical vector (embedding) so we can measure semantic
+  closeness between two pieces of text — even when they use different words.
+
+Model used:
+  Xenova/all-MiniLM-L6-v2 (via @xenova/transformers)
+  
+  - Runs 100% locally, no API call, no internet needed
+  - Quantized ONNX model — small and fast
+  - Produces 384-dimensional dense vectors
+  - Input capped at 512 characters (first 512 chars used)
+  - Pooling: mean pooling across token embeddings → 1 vector per text
+
+Why all-MiniLM-L6-v2:
+  It's a distilled version of BERT trained specifically for sentence similarity
+  tasks. Despite being tiny (23M params), it outperforms much larger models on
+  semantic search benchmarks because it was fine-tuned on pairs of similar sentences.
+
+How cosine similarity works:
+  cosineSimilarity(v1, v2) = (v1 · v2) / (|v1| × |v2|)
+  
+  Returns 0.0 (completely different) to 1.0 (identical meaning).
+  Threshold for "relevant" match used in recall scoring: > 0.35
+
+Graceful degradation:
+  If the Xenova model fails to load (offline, memory constraints), the system
+  falls back to Jaccard word overlap for all similarity calculations.
+  This is logged as a warning but never crashes the system.
+
+Used in:
+  - scoreChunk() → topicMatch sub-score
+  - handleRecall() in tools.ts → semantic search across commits
+    (tries embedding similarity on top of keyword matching)
+
+────────────────────────────────────────────────────────────────────────────────
+  5d. SUMMARIZATION
+  File: packages/core/src/summarizer.ts → summarize()
+────────────────────────────────────────────────────────────────────────────────
+
+Purpose:
+  Compress "summarize"-labeled chunks into a shorter form so reconstructed
+  context uses fewer tokens while preserving the key information.
+
+The summarization pipeline (3-tier fallback):
+
+  TIER 1: Cache lookup
+    Input chunks are hashed (SHA-256) → looked up in summary_cache table
+    Cache hit → return cached summary immediately (no LLM call)
+    This makes repeated reconstruct() calls nearly instant
+
+  TIER 2: LLM summarization (if API key exists)
+    If ANTHROPIC_API_KEY is set → uses Claude (model from SUMMARIZER_MODEL env)
+    Else if OPENAI_API_KEY is set → uses OpenAI (default: gpt-4o-mini)
+    
+    System prompt (critical instruction):
+      "Summarize into 1-2 concise sentences. CRITICAL: preserve all specific
+       named values, numbers, ports, identifiers, model names, environment
+       variables, priority orders, and tool names verbatim."
+    
+    Max tokens: 250 per summary
+    Why gpt-4o-mini default: cheap, fast, good at instruction-following compression
+
+  TIER 3: Extractive fallback (no API key needed)
+    Pure algorithmic summarization — picks the most important sentences:
+    
+    Algorithm:
+      1. Split text into sentences on [.!?] boundaries
+      2. Always keep: first sentence, last sentence
+      3. For middle sentences, keep if they match:
+         - Action/decision words: "decided|must|created|updated|error|fix|used|
+           endpoint|select|add|remove|config|port|database|model|priority"
+         - Contains numbers (concrete values are important)
+         - Contains operators (=, >, <, :) — likely config/code
+      4. Join kept sentences
+    
+    NLP concept: Extractive summarization (sentence selection)
+    vs. TIER 2's abstractive summarization (LLM rewrites)
+
+  Result is cached in summary_cache table for future calls.
+
+────────────────────────────────────────────────────────────────────────────────
+  5e. RECALL SEARCH
+  File: packages/mcp-server/src/tools.ts → handleRecall()
+────────────────────────────────────────────────────────────────────────────────
+
+Purpose:
+  Find commits relevant to a query. Used when you ask Kiro things like
+  "what port is the proxy on?" or "what animations did we build?"
+
+The recall scoring pipeline:
+
+  For each commit in the session:
+    score = 0
+
+    1. Exact query match in topic_label → +3.0
+    2. Exact query match in chunks text → +2.0
+    3. Exact query match in reason_log → +1.5
+    4. Per-word partial matches (words > 2 chars):
+         topic hit   → +0.8 per word
+         chunk hit   → +0.6 per word
+         reason hit  → +0.4 per word
+    5. Semantic embedding similarity (optional):
+         Compute embedding for query + for each commit (topic + reason)
+         If cosine similarity > 0.35 → add similarity × 2.5
+    
+    Special: query "*" or "all" or "" → score = 1.0 for every commit
+
+  Commits sorted by score descending → top matches returned.
+
+  NLP concepts used:
+    - Keyword search (TF-style scoring)
+    - Semantic search (embedding cosine similarity)
+    - Hybrid ranking (keyword score + semantic score combined)
+
+  Scope parameter:
+    scope="branch" → only search active branch commits
+    scope="all"    → search all branches in session
+
+────────────────────────────────────────────────────────────────────────────────
+  5f. CONTEXT RECONSTRUCTION
+  File: packages/core/src/store/graph.ts → reconstructContext()
+────────────────────────────────────────────────────────────────────────────────
+
+Purpose:
+  Build the full memory block that gets injected into Kiro when gather_context()
+  is called. This is what actually replaces the context window.
+
+Algorithm:
+  1. Get active branch → find head_commit_id
+  2. Walk the commit ancestry chain (head → parent → parent → ...)
+     Collect all commits from head back to root
+  3. Assign recency scores:
+     most recent commit = 1.0, normalize across all commits
+  4. Separate chunks into two buckets:
+     - kept_verbatim: chunks labeled 'keep_verbatim' → go into keptVerbatim[]
+     - summarize: chunks labeled 'summarize' → go into summarize[]
+     - discard: labeled 'discard' → dropped entirely
+  5. Call summarize(summarizeChunks) → produces rolling summary text
+  6. Assemble fullPromptText:
+     "=== CONTEXT SUMMARY ===\n{rolling summary}\n\n=== RELEVANT CONTEXT ===\n{kept verbatim chunks joined}"
+  7. Calculate token counts for raw vs optimized
+
+Output:
+  ReconstructedContext {
+    keptVerbatim: Chunk[]         // verbatim preserved facts
+    summaries: string[]           // compressed summaries
+    fullPromptText: string        // the actual text injected into Kiro
+    rawTokenCount: number         // tokens if nothing was compressed
+    reconstructedTokenCount: number // tokens after compression
+    tokensSavedPct: number        // savings percentage
+    activeBranch: string
+    headCommitId: string | null
+  }
+
+NLP concepts:
+  - Ancestor chain traversal (commit graph walking)
+  - Recency normalization
+  - Two-tier triage (keep vs summarize)
+  - Extractive + abstractive compression pipeline
+
+================================================================================
+  6. DATA FLOW: END-TO-END COMMIT LIFECYCLE
+================================================================================
+
+  1. You work with Kiro and make a decision (e.g. "use port 3001 for the API")
+
+  2. The UserPromptSubmit hook fires → reminds Kiro to call commit()
+
+  3. Kiro calls: commit("[Config] API server port", "Express API runs on 3001", ["port: 3001"])
+
+  4. MCP server receives the call → handleCommit() in tools.ts
+
+  5. handleCommit() calls coreCommit() in graph.ts:
+     - Creates a commit row in `commits` table
+     - Creates chunk rows in `chunks` table:
+         kept_refs[0] → label='keep_verbatim', content="port: 3001"
+         summary text → label='summarize', content="Express API runs on 3001"
+     - Updates branch head_commit_id to new commit
+
+  6. On next chat or context window fill → Kiro calls gather_context()
+
+  7. handleGatherContext() in tools.ts calls reconstructContext() in graph.ts:
+     - Walks commit ancestry chain
+     - Keeps "port: 3001" verbatim (keep_verbatim label)
+     - Summarizes the summary text (short, might stay as-is)
+     - Assembles fullPromptText
+
+  8. Returns the memory block to Kiro as MCP tool result
+     → Kiro reads it and now "remembers" port 3001 in the new chat
+
+  Token saving calculation:
+    rawTokenCount      = tokens("Express API runs on 3001") + tokens("port: 3001")
+    optimizedTokens    = tokens("port: 3001") + tokens(summary of "Express API runs on 3001")
+    saved              = rawTokenCount - optimizedTokens
+    tokensSavedPct     = saved / rawTokenCount × 100
+    estimatedCostSaved = saved / 1000 × $0.003
+
+================================================================================
+  7. DATABASE SCHEMA
+================================================================================
+
+File: context.db (SQLite, at project root, found via directory walk)
+Init: packages/core/src/store/db.ts → initSchema()
+
+TABLE: commits
+  id          TEXT PRIMARY KEY    — "commit_" + 16-char hex
+  parent_id   TEXT                — previous commit ID (null for root)
+  session_id  TEXT NOT NULL       — project identifier (e.g. "default_session")
+  branch      TEXT NOT NULL       — branch name (e.g. "main", "feature-x")
+  timestamp   INTEGER NOT NULL    — Unix ms
+  topic_label TEXT NOT NULL       — "[Category] Short title"
+  reason_log  TEXT NOT NULL       — 1-3 sentence explanation
+
+TABLE: chunks
+  id          TEXT PRIMARY KEY    — "chunk_" + 16-char hex
+  commit_id   TEXT NOT NULL       — FK → commits.id (CASCADE DELETE)
+  content     TEXT NOT NULL       — actual text content
+  label       TEXT NOT NULL       — 'keep_verbatim' | 'summarize' | 'discard'
+  source_ref  TEXT                — where this came from ("mcp_kept_ref", "mcp_summary")
+
+TABLE: branches
+  name              TEXT NOT NULL   — branch name
+  session_id        TEXT NOT NULL   — project identifier
+  head_commit_id    TEXT            — latest commit on this branch (nullable)
+  is_active         INTEGER         — 1 = currently selected, 0 = background
+  PRIMARY KEY: (name, session_id)   — unique branch per project
+
+TABLE: conflicts
+  id          TEXT PRIMARY KEY
+  session_id  TEXT NOT NULL
+  branch_a    TEXT NOT NULL         — target branch
+  branch_b    TEXT NOT NULL         — source branch
+  topic_label TEXT NOT NULL
+  description TEXT NOT NULL
+  resolved    INTEGER DEFAULT 0     — 0=unresolved, 1=resolved
+  timestamp   INTEGER NOT NULL
+
+TABLE: summary_cache
+  hash        TEXT PRIMARY KEY      — SHA-256 of chunk IDs + content
+  summary     TEXT NOT NULL         — cached summary text
+  timestamp   INTEGER NOT NULL
+
+Indexes:
+  idx_commits_session_branch    ON commits(session_id, branch)
+  idx_chunks_commit_id          ON chunks(commit_id)
+  idx_chunks_label              ON chunks(label)
+  idx_branches_session          ON branches(session_id)
+  idx_conflicts_session         ON conflicts(session_id)
+
+================================================================================
+  8. MCP TOOL REFERENCE
+================================================================================
+
+All tools go through packages/mcp-server/src/server.ts (stdio transport).
+Handlers are in packages/mcp-server/src/tools.ts.
+Default session: "default_session" (used if session_id not specified).
+
+TOOL: gather_context
+  Loads full reconstructed memory for the session. Call at start of every chat.
+  Params:
+    session_id?: string   (optional, defaults to active session with commits)
+  Returns:
+    Memory block with session header, commit count, token savings, full context text.
+
+TOOL: commit
+  Save a decision/fact/config to permanent memory.
+  Params:
+    topic:     string    "[Category] Short title"
+    summary:   string    1-3 sentences explaining what/why
+    kept_refs: string[]  verbatim facts/code/values to preserve exactly
+  Categories: [Bug Fix] [Feature] [Config] [Design] [API] [Refactor] [Decision]
+
+TOOL: recall
+  Search past commits by keyword or semantic similarity.
+  Params:
+    query: string          keyword, phrase, or "*" for all
+    scope: "all"|"branch"  "all" = all branches, "branch" = active branch only
+  Returns:
+    Scored, ranked list of matching commits with their kept facts.
+
+TOOL: branch
+  Create a new branch or switch to an existing one.
+  Params:
+    name:         string   branch name
+    from_commit?: string   optional starting commit ID (for new branches)
+  Behavior:
+    If branch exists → switch to it (preserve its history)
+    If new → create from current HEAD
+
+TOOL: merge
+  Merge source branch into target branch.
+  Params:
+    source_branch: string   branch to merge from
+    target_branch: string   branch to merge into (default: "main")
+  On conflict: returns conflict ID and description (no auto-resolve)
+  On success: creates a merge commit on target branch
+
+TOOL: checkout
+  Roll back context to a specific commit state.
+  Params:
+    commit_id: string   the commit to check out
+  Updates the branch's head and active state.
+
+================================================================================
+  9. REST API REFERENCE
+================================================================================
+
+Server: packages/web/server/api.ts
+Port: 3001 (proxied from Vite on 3000 via /api path)
+
+GET    /api/sessions                          → list all project sessions
+GET    /api/sessions/:id/stats                → token counts, savings, branch info
+GET    /api/sessions/:id/branches             → list branches for session
+GET    /api/sessions/:id/commits?branch=X     → commits (all or filtered by branch)
+GET    /api/sessions/:id/context              → reconstructed context (full text)
+POST   /api/sessions/:id/gather               → search commits {query, scope}
+POST   /api/sessions/:id/branch/switch        → switch active branch {name}
+GET    /api/commits/:id                       → single commit with all chunks
+GET    /api/conflicts?session_id=X            → unresolved conflicts
+POST   /api/checkout                          → {sessionId, commitId}
+POST   /api/branch                            → {sessionId, name, fromCommitId?}
+POST   /api/merge                             → {sessionId, sourceBranch, targetBranch}
+POST   /api/commits/promote                   → {chunkId, newLabel}
+POST   /api/conflicts/:id/resolve             → mark conflict resolved
+
+================================================================================
+  10. CLI COMMAND REFERENCE
+================================================================================
+
+Binary: context-engine  (linked at ~/bin/context-engine)
+Shebang: #!/usr/local/bin/node  (requires Node v22)
+Source: packages/cli/src/index.tsx
+Dist: packages/cli/dist/index.js
+
+COMMANDS:
+
+  context-engine status
+    Shows: session, active branch, head commit, commit count,
+           kept refs, summarized count, token stats, cost savings
+
+  context-engine log [options]
+    Options:
+      -s, --session <id>    session ID (default: default_session)
+      -b, --branch <name>   show specific branch (default: active branch)
+      -n, --limit <n>       max commits to show (default: 20)
+    Shows: commit ID, topic label, date, kept ref count, HEAD marker
+
+  context-engine branches [options]
+    Options:
+      -s, --session <id>    session ID
+    Shows: all branches, * marks active, head commit ID
+
+  context-engine sessions
+    Shows: all project sessions with branch, commit count, last active time
+
+  context-engine watch [options]
+    Options:
+      -s, --session <id>    session ID
+    Launches: Ink TUI (React terminal UI), refreshes every 1.5s
+    Shows: stats bar, branch list, commit log in real-time
+
+  context-engine branch <name> [options]
+    Creates or switches to branch by name
+
+  context-engine checkout <commitId> [options]
+    Rolls back to a specific commit
+
+================================================================================
+  11. KIRO INTEGRATION
+================================================================================
+
+FILES:
+  .kiro/steering/context_memory.md    — always-on rules injected into every prompt
+  .kiro/hooks/context-engine-session-start.json  — SessionStart hook
+  .kiro/hooks/context-engine-dial.json           — UserPromptSubmit hook
+  .kirorules                                     — global Kiro rules file
+
+HOW AUTOMATIC MEMORY WORKS:
+
+  Step 1: New chat opens
+    → SessionStart hook fires
+    → Agent hook injects instruction: "Call gather_context() before anything"
+    → Kiro calls gather_context() via MCP
+    → Gets back full memory block (reconstructed from context.db)
+    → Kiro now has all past decisions without reading its own context window
+
+  Step 2: You send a message
+    → UserPromptSubmit hook fires
+    → Agent hook checks: has gather_context been called? Did work get completed?
+    → If work completed: Kiro calls commit() with structured entry
+    → Commit is saved to context.db permanently
+
+  Step 3: Context window fills up → new chat starts
+    → Repeat from Step 1
+    → Kiro reads from context.db not from its degraded context window
+    → No memory loss between sessions
+
+STRUCTURED COMMIT FORMAT (enforced by steering):
+  topic:     "[Category] Short title"
+             Categories: [Bug Fix][Feature][Config][Design][API][Refactor][Decision]
+  summary:   1-3 sentences: what was done + why
+  kept_refs: exact code/values/paths (NOT descriptions)
+
+================================================================================
+  12. CONFIGURATION & ENVIRONMENT VARIABLES
+================================================================================
+
+File: .env (project root)
+     .env.example (template)
+
+Variable                Default              Description
+─────────────────────── ──────────────────── ──────────────────────────────
+WEB_SERVER_PORT         3001                 Express API server port
+OPENAI_API_KEY          (none)               Enables LLM summarization via OpenAI
+OPENAI_BASE_URL         https://api.openai.com/v1  Custom OpenAI endpoint (Ollama etc)
+ANTHROPIC_API_KEY       (none)               Enables LLM summarization via Anthropic
+SUMMARIZER_MODEL        gpt-4o-mini          Model for summarization
+CE_DB_PATH              (auto-discovered)    Override SQLite DB path
+
+DB path discovery:
+  Walks up from process.cwd() looking for context.db
+  Falls back to project root if not found
+
+Node version requirement:
+  Server + CLI must use /usr/local/bin/node (v22.14.0)
+  better-sqlite3 native binary compiled for Node v22 (modules v127)
+  Terminal nvm default is v20 — do NOT use for server or CLI
+
+================================================================================
+  13. KNOWN LIMITATIONS & NOTES
+================================================================================
+
+1. NLP scoring (scorer.ts) is designed for proxy mode (raw content scoring).
+   In MCP mode, the AI assigns labels directly via kept_refs (keep_verbatim)
+   and summary (summarize). scoreChunk() is not called in the MCP commit flow.
+
+2. Xenova/all-MiniLM-L6-v2 downloads ~23MB on first run (ONNX model cache).
+   If unavailable, Jaccard similarity is used as fallback — accuracy is lower
+   but the system remains fully functional.
+
+3. The extractive fallback summarizer is intentionally simple (sentence picking).
+   For best results, set OPENAI_API_KEY or ANTHROPIC_API_KEY so the LLM
+   summarizer handles the 'summarize' tier chunks.
+
+4. Merge conflict detection: only fires when two branches have 'keep_verbatim'
+   chunks with the same topic_label but different content. Non-conflicting
+   data always merges cleanly.
+
+5. Cost savings estimate: $0.003 per 1K tokens saved. This is an approximation
+   based on mid-tier OpenAI pricing. Your actual savings depend on which model
+   you're using. The metric is directionally correct but not exact billing data.
+
+6. The proxy package (packages/proxy) is an optional layer. Most users use
+   Context Engine purely via MCP tools called by the AI. The proxy is for use
+   cases where you want injection to happen at the HTTP layer without AI cooperation.
+
+7. Sessions are plain string IDs — no authentication, no multi-user support.
+   context.db is a local file designed for single-developer use.
+
+================================================================================
+  END OF DOCUMENT
+================================================================================

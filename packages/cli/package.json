@@ -1,0 +1,28 @@
+{
+  "name": "@context-engine/cli",
+  "version": "0.1.0-beta.1",
+  "description": "Terminal UI watcher and CLI tool for Context Engine",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "context-engine": "./bin/context-engine.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.tsx",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@context-engine/core": "*",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "ink": "^4.4.1",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "@types/react": "^18.3.3",
+    "tsx": "^4.15.7",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,19 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Build outputs
+dist
+dist-server
+
+# Dependencies
+node_modules
+
+# Databases
+*.db
+*.db-journal
+context.db
+
+# System files
+.DS_Store

@@ -1,0 +1,229 @@
+{
+  "fixtureTitle": "Realistic Fixture (conversation_realistic.json)",
+  "fileName": "conversation_realistic.json",
+  "directTotalTokens": 11044,
+  "proxyTotalTokens": 7410,
+  "tokensSaved": 3634,
+  "tokensSavedPct": 33,
+  "shadowDeltas": [
+    {
+      "turn": 1,
+      "originalTokens": 24,
+      "boundedTokens": 18,
+      "delta": 6
+    },
+    {
+      "turn": 2,
+      "originalTokens": 42,
+      "boundedTokens": 41,
+      "delta": 1
+    },
+    {
+      "turn": 3,
+      "originalTokens": 67,
+      "boundedTokens": 64,
+      "delta": 3
+    },
+    {
+      "turn": 4,
+      "originalTokens": 94,
+      "boundedTokens": 65,
+      "delta": 29
+    },
+    {
+      "turn": 5,
+      "originalTokens": 118,
+      "boundedTokens": 87,
+      "delta": 31
+    },
+    {
+      "turn": 6,
+      "originalTokens": 141,
+      "boundedTokens": 88,
+      "delta": 53
+    },
+    {
+      "turn": 7,
+      "originalTokens": 169,
+      "boundedTokens": 88,
+      "delta": 81
+    },
+    {
+      "turn": 8,
+      "originalTokens": 193,
+      "boundedTokens": 110,
+      "delta": 83
+    },
+    {
+      "turn": 9,
+      "originalTokens": 215,
+      "boundedTokens": 130,
+      "delta": 85
+    },
+    {
+      "turn": 10,
+      "originalTokens": 237,
+      "boundedTokens": 150,
+      "delta": 87
+    },
+    {
+      "turn": 11,
+      "originalTokens": 269,
+      "boundedTokens": 180,
+      "delta": 89
+    },
+    {
+      "turn": 12,
+      "originalTokens": 289,
+      "boundedTokens": 198,
+      "delta": 91
+    },
+    {
+      "turn": 13,
+      "originalTokens": 318,
+      "boundedTokens": 212,
+      "delta": 106
+    },
+    {
+      "turn": 14,
+      "originalTokens": 341,
+      "boundedTokens": 233,
+      "delta": 108
+    },
+    {
+      "turn": 15,
+      "originalTokens": 367,
+      "boundedTokens": 257,
+      "delta": 110
+    },
+    {
+      "turn": 16,
+      "originalTokens": 387,
+      "boundedTokens": 275,
+      "delta": 112
+    },
+    {
+      "turn": 17,
+      "originalTokens": 412,
+      "boundedTokens": 298,
+      "delta": 114
+    },
+    {
+      "turn": 18,
+      "originalTokens": 436,
+      "boundedTokens": 295,
+      "delta": 141
+    },
+    {
+      "turn": 19,
+      "originalTokens": 457,
+      "boundedTokens": 292,
+      "delta": 165
+    },
+    {
+      "turn": 20,
+      "originalTokens": 484,
+      "boundedTokens": 317,
+      "delta": 167
+    },
+    {
+      "turn": 21,
+      "originalTokens": 503,
+      "boundedTokens": 335,
+      "delta": 168
+    },
+    {
+      "turn": 22,
+      "originalTokens": 523,
+      "boundedTokens": 353,
+      "delta": 170
+    },
+    {
+      "turn": 23,
+      "originalTokens": 543,
+      "boundedTokens": 371,
+      "delta": 172
+    },
+    {
+      "turn": 24,
+      "originalTokens": 566,
+      "boundedTokens": 374,
+      "delta": 192
+    },
+    {
+      "turn": 25,
+      "originalTokens": 590,
+      "boundedTokens": 396,
+      "delta": 194
+    },
+    {
+      "turn": 26,
+      "originalTokens": 614,
+      "boundedTokens": 418,
+      "delta": 196
+    },
+    {
+      "turn": 27,
+      "originalTokens": 628,
+      "boundedTokens": 421,
+      "delta": 207
+    },
+    {
+      "turn": 28,
+      "originalTokens": 651,
+      "boundedTokens": 442,
+      "delta": 209
+    },
+    {
+      "turn": 29,
+      "originalTokens": 671,
+      "boundedTokens": 440,
+      "delta": 231
+    },
+    {
+      "turn": 30,
+      "originalTokens": 695,
+      "boundedTokens": 462,
+      "delta": 233
+    }
+  ],
+  "recallResults": [
+    {
+      "questionNum": 1,
+      "turn": 10,
+      "question": "Question 1 (DB engine, embedding model, proxy port)",
+      "pass": true,
+      "note": "PASS (Retained SQLite, Xenova/all-MiniLM-L6-v2, Port 4000)"
+    },
+    {
+      "questionNum": 2,
+      "turn": 20,
+      "question": "Question 2 (Session resolution priority order)",
+      "pass": true,
+      "note": "PASS (Retained header > metadata > query > hash_fallback)"
+    },
+    {
+      "questionNum": 3,
+      "turn": 20,
+      "question": "Question 3 (Manual override commit history)",
+      "pass": true,
+      "note": "PASS (Retained manual override append behavior)"
+    },
+    {
+      "questionNum": 4,
+      "turn": 30,
+      "question": "Question 4 (5 MCP tool names)",
+      "pass": true,
+      "note": "PASS (Retained recall, commit, branch, merge, checkout)"
+    },
+    {
+      "questionNum": 5,
+      "turn": 30,
+      "question": "Question 5 (Shadow mode function)",
+      "pass": true,
+      "note": "PASS (Retained shadow mode token saving behavior)"
+    }
+  ],
+  "passedCount": 5,
+  "totalQuestions": 5
+}
