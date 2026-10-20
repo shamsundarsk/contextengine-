@@ -15,6 +15,7 @@ import {
   merge,
   promoteChunk,
   getActiveBranch,
+  getContextTree,
 } from '@context-engine/core';
 
 import path from 'path';
@@ -24,7 +25,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 
 const app = express();
-const port = process.env.WEB_SERVER_PORT || 3001;
+const port = Number(process.env.WEB_SERVER_PORT || 3005);
 
 app.use(cors());
 app.use(express.json());
@@ -94,36 +95,66 @@ app.post('/api/sessions/:id/gather', async (req, res) => {
 });
 
 app.get('/api/sessions/:id/stats', (req, res) => {
-  const sessionId = req.params.id || 'default_session';
-  const stats = getStats(sessionId);
-  res.json(stats);
+  try {
+    const sessionId = req.params.id || 'default_session';
+    const stats = getStats(sessionId);
+    res.json(stats);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/sessions/:id/branches', (req, res) => {
-  const sessionId = req.params.id || 'default_session';
-  const branches = getBranches(sessionId);
-  res.json(branches);
+  try {
+    const sessionId = req.params.id || 'default_session';
+    const branches = getBranches(sessionId);
+    res.json(branches);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sessions/:id/tree', (req, res) => {
+  try {
+    const sessionId = req.params.id || 'default_session';
+    const tree = getContextTree(sessionId);
+    res.json({ tree });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/sessions/:id/commits', (req, res) => {
-  const sessionId = req.params.id || 'default_session';
-  const branchName = req.query.branch as string | undefined;
-  const commits = getCommits(sessionId, branchName);
-  res.json(commits);
+  try {
+    const sessionId = req.params.id || 'default_session';
+    const branchName = req.query.branch as string | undefined;
+    const commits = getCommits(sessionId, branchName);
+    res.json(commits);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/commits/:id', (req, res) => {
-  const commitObj = getCommit(req.params.id);
-  if (!commitObj) {
-    return res.status(404).json({ error: 'Commit not found' });
+  try {
+    const commitObj = getCommit(req.params.id);
+    if (!commitObj) {
+      return res.status(404).json({ error: 'Commit not found' });
+    }
+    res.json(commitObj);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(commitObj);
 });
 
 app.get('/api/conflicts', (req, res) => {
-  const sessionId = (req.query.session_id as string) || undefined;
-  const conflicts = getConflicts(sessionId);
-  res.json(conflicts);
+  try {
+    const sessionId = (req.query.session_id as string) || undefined;
+    const conflicts = getConflicts(sessionId);
+    res.json(conflicts);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/checkout', (req, res) => {

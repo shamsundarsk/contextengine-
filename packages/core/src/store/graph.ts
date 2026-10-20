@@ -307,9 +307,9 @@ export function getContextTree(sessionId: string = 'default_session'): string {
   let targetSession = sessionId;
   const allSessions = getAllSessions();
 
-  // If provided session has no commits, pick first active session if available
+  // If default session has no commits, pick first active session with commits as convenience
   const currentSessionCommits = getCommits(targetSession);
-  if (currentSessionCommits.length === 0) {
+  if (currentSessionCommits.length === 0 && sessionId === 'default_session') {
     const activeWithCommits = allSessions.find((s) => s.commitCount > 0);
     if (activeWithCommits) {
       targetSession = activeWithCommits.sessionId;

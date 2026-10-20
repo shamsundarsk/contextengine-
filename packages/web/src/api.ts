@@ -163,3 +163,10 @@ export async function resolveConflict(conflictId: string): Promise<void> {
     throw new Error(err.error || 'Resolve conflict failed');
   }
 }
+
+export async function fetchContextTree(sessionId: string = 'default_session'): Promise<string> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/tree`);
+  if (!res.ok) throw new Error('Failed to fetch context tree');
+  const data = await res.json();
+  return data.tree || '';
+}

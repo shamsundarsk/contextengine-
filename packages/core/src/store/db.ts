@@ -7,8 +7,18 @@ let dbInstance: Database.Database | null = null;
 
 export function getDefaultDbPath(): string {
   if (process.env.DB_PATH) {
-    return process.env.DB_PATH;
+    const p = process.env.DB_PATH;
+    if (!path.isAbsolute(p) && p !== ':memory:') {
+      const parentDb = path.resolve(process.cwd(), '..', p);
+      const grandParentDb = path.resolve(process.cwd(), '../..', p);
+      const directDb = path.resolve(process.cwd(), p);
+      if (fs.existsSync(parentDb)) return parentDb;
+      if (fs.existsSync(grandParentDb)) return grandParentDb;
+      if (fs.existsSync(directDb)) return directDb;
+    }
+    return p;
   }
+
   const baseDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   return path.join(baseDir, 'context-engine', 'context.db');
 }
@@ -23,7 +33,19 @@ export function getDatabase(dbPath?: string): Database.Database {
   if (!targetPath) {
     targetPath = getDefaultDbPath();
   } else if (!path.isAbsolute(targetPath) && targetPath !== ':memory:') {
-    targetPath = path.resolve(process.cwd(), targetPath);
+    const parentDb = path.resolve(process.cwd(), '..', targetPath);
+    const grandParentDb = path.resolve(process.cwd(), '../..', targetPath);
+    const directDb = path.resolve(process.cwd(), targetPath);
+
+    if (fs.existsSync(parentDb)) {
+      targetPath = parentDb;
+    } else if (fs.existsSync(grandParentDb)) {
+      targetPath = grandParentDb;
+    } else if (fs.existsSync(directDb)) {
+      targetPath = directDb;
+    } else {
+      targetPath = directDb;
+    }
   }
 
   if (targetPath !== ':memory:') {

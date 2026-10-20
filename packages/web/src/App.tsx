@@ -6,6 +6,7 @@ import {
   fetchCommits,
   fetchConflicts,
   fetchSessions,
+  fetchContextTree,
   checkoutCommit,
   createBranch,
   switchBranch,
@@ -20,6 +21,7 @@ import { ConflictAlert } from './components/ConflictAlert.js';
 import { CommitDetailModal } from './components/CommitDetailModal.js';
 import { ContextGatherer } from './components/ContextGatherer.js';
 import { ProjectsLanding } from './components/ProjectsLanding.js';
+import { ContextGraphTree } from './components/ContextGraphTree.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +43,9 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [headCommitId, setHeadCommitId] = useState<string | null>(null);
   const [showGathererModal, setShowGathererModal] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'tree' | 'timeline'>('tree');
+  const [rawTreeText, setRawTreeText] = useState<string>('');
+  const [allBranchCommits, setAllBranchCommits] = useState<Record<string, Commit[]>>({});
 
   // ── Data loader ──────────────────────────────────────────────────────────
   // NOTE: activeBranch is intentionally NOT in this callback's closure deps —
@@ -48,17 +53,19 @@ export const App: React.FC = () => {
   const loadDashboardData = useCallback(
     async (overrideActiveBranch?: string) => {
       try {
-        const [sessionsData, statsData, branchData, conflictData] = await Promise.all([
+        const [sessionsData, statsData, branchData, conflictData, treeData] = await Promise.all([
           fetchSessions(),
           fetchStats(sessionId),
           fetchBranches(sessionId),
           fetchConflicts(sessionId),
+          fetchContextTree(sessionId).catch(() => ''),
         ]);
 
         setSessions(sessionsData);
         setStats(statsData);
         setBranches(branchData);
         setConflicts(conflictData);
+        setRawTreeText(treeData);
 
         // Only set activeBranch when an explicit override is given (initial load / after
         // a branch switch).  Regular polls leave activeBranch alone so the user's
@@ -73,6 +80,19 @@ export const App: React.FC = () => {
 
         if (commitsData.length > 0) {
           setHeadCommitId(commitsData[0].id);
+        }
+
+        // Fetch commits for all branches in parallel to power the topology graph tree
+        try {
+          const pairs = await Promise.all(
+            branchData.map(async (b) => {
+              const bCommits = await fetchCommits(sessionId, b.name);
+              return [b.name, bCommits] as const;
+            })
+          );
+          setAllBranchCommits(Object.fromEntries(pairs));
+        } catch {
+          // ignore background branch fetch errors
         }
       } catch (err) {
         console.error('Error loading dashboard data:', err);
@@ -268,12 +288,78 @@ export const App: React.FC = () => {
           onCreateBranch={handleCreateBranch}
           onMergeBranch={handleMergeBranch}
         />
-        <CommitTimeline
-          commits={commits}
-          headCommitId={headCommitId}
-          onCheckout={handleCheckout}
-          onExpandCommit={(c) => setSelectedCommit(c)}
-        />
+        <div>
+          {/* Tab View Switcher */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '16px',
+              borderBottom: '1px solid #18181b',
+              paddingBottom: '12px',
+            }}
+          >
+            <button
+              onClick={() => setActiveTab('tree')}
+              style={{
+                background: activeTab === 'tree' ? '#1c1c24' : 'transparent',
+                color: activeTab === 'tree' ? '#ffffff' : '#71717a',
+                border: activeTab === 'tree' ? '1px solid #3b82f6' : '1px solid #27272a',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>🌳</span> Context Graph Tree
+            </button>
+            <button
+              onClick={() => setActiveTab('timeline')}
+              style={{
+                background: activeTab === 'timeline' ? '#1c1c24' : 'transparent',
+                color: activeTab === 'timeline' ? '#ffffff' : '#71717a',
+                border: activeTab === 'timeline' ? '1px solid #3b82f6' : '1px solid #27272a',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>📜</span> Commit Log ({commits.length})
+            </button>
+          </div>
+
+          {activeTab === 'tree' ? (
+            <ContextGraphTree
+              sessionId={sessionId}
+              activeBranch={activeBranch}
+              branches={branches}
+              allBranchCommits={allBranchCommits}
+              rawTreeText={rawTreeText}
+              onSelectBranch={handleSelectBranch}
+              onCheckout={handleCheckout}
+              onExpandCommit={(c) => setSelectedCommit(c)}
+              onRefresh={loadDashboardData}
+            />
+          ) : (
+            <CommitTimeline
+              commits={commits}
+              headCommitId={headCommitId}
+              onCheckout={handleCheckout}
+              onExpandCommit={(c) => setSelectedCommit(c)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Floating utility pill */}
