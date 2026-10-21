@@ -4,7 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { registerSampler } from '@context-engine/core';
+import { registerSampler } from '@sham-sundar-senthil-kumar/context-engine-core';
 import { CONTEXT_ENGINE_INSTRUCTIONS } from './instructions.js';
 import {
   handleBranch,

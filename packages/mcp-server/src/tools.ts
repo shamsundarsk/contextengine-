@@ -18,7 +18,7 @@ import {
   OverrideNodeOptions,
   TriageLabel,
   LogTier,
-} from '@context-engine/core';
+} from '@sham-sundar-senthil-kumar/context-engine-core';
 
 // Internal session turn tracking and buffered messages for autonomous commits
 interface SessionTurnState {

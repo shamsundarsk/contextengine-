@@ -8,7 +8,7 @@
  * Exit 0 with no output = no data yet, silent pass
  */
 
-import { getAllSessions, getActiveBranch, getStats } from '@context-engine/core';
+import { getAllSessions, getActiveBranch, getStats } from '@sham-sundar-senthil-kumar/context-engine-core';
 import path from 'path';
 import dotenv from 'dotenv';
 

@@ -1,6 +1,6 @@
 {
   "name": "@sham-sundar-senthil-kumar/mcp-server",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "MCP (Model Context Protocol) server for Context Engine",
   "main": "dist/server.js",
   "bin": {
@@ -22,8 +22,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@context-engine/core": "*",
     "@modelcontextprotocol/sdk": "^0.6.0",
+    "@sham-sundar-senthil-kumar/context-engine-core": "0.1.1",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
